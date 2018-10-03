@@ -6,9 +6,9 @@ Create an image object and render it to a terminal window using braille characte
 Everything in one file for convenience, this is just a base for further experimentation. The basic idea is to use image generation algos to feed to a braille printer, animating a sequence based on simple time-based incremental counters.
 
 Key modifiers are displayed on-screen, additionally:
-CTRL-L: restarts with sane defaults
-ESC/Enter: exits
-Arrow keys: move X/Y coordinates
+- CTRL-L: restarts with sane defaults
+- ESC/Enter: exits
+- Arrow keys: move X/Y coordinates
 
 The name stands for "Rotate Terminal" or something. It doesn't `rm` anything. That didn't really occur to us, dude.
 

@@ -67,9 +67,9 @@ func (screen *Term) stats(s tcell.Screen, e1 time.Duration, e2 time.Duration, e3
 
 // draw key modifier  stats, mostly copy/paste of above ¯\_(ツ)_/¯
 func (screen *Term) modstats(s tcell.Screen, radius int, circles int, offset int, sY int) {
-	line1 := fmt.Sprintf("radius [A-Z]:  %v", radius)
+	line1 := fmt.Sprintf("radius [A-Z]: %v", radius)
 	line2 := fmt.Sprintf("circles[S-X]: %v", circles)
-	line3 := fmt.Sprintf("offset [D-C]:  %v", offset)
+	line3 := fmt.Sprintf("offset [D-C]: %v", offset)
 
 	mid1 := tcell.NewRGBColor(43, 43, 43)
 	mid2 := tcell.NewRGBColor(40, 40, 40)

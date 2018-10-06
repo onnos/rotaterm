@@ -28,9 +28,9 @@ import (
 
 // a terminal window matrix with Runes
 type Term struct {
-	Matrix [][]rune
-	SizeX  int
-	SizeY  int
+	matrix [][]rune
+	sizeX  int
+	sizeY  int
 }
 
 func newTerm(x, y int) *Term {
@@ -42,7 +42,7 @@ func newTerm(x, y int) *Term {
 }
 
 // draws time stats
-func (screen *Term) stats(s tcell.Screen, e1 time.Duration, e2 time.Duration, e3 time.Duration, sY int) {
+func (screen *Term) stats(s tcell.Screen, e1 time.Duration, e2 time.Duration, e3 time.Duration) {
 	line1 := fmt.Sprintf("mkimg:  %3v", e1.Truncate(time.Millisecond))
 	line2 := fmt.Sprintf("mkdots: %3v", e2.Truncate(time.Millisecond))
 	line3 := fmt.Sprintf("screen: %3v", e3.Truncate(time.Millisecond))
@@ -55,18 +55,18 @@ func (screen *Term) stats(s tcell.Screen, e1 time.Duration, e2 time.Duration, e3
 	}
 
 	for i := 0; i < len(line1); i++ {
-		s.SetCell(i+1, sY-3, tcell.StyleDefault.Foreground(tcell.Color111).Background(mid1), rune(line1[i]))
+		s.SetContent(i+1, screen.sizeY-3, rune(line1[i]), nil, tcell.StyleDefault.Foreground(tcell.Color111).Background(mid1))
 	}
 	for i := 0; i < len(line2); i++ {
-		s.SetCell(i+1, sY-2, tcell.StyleDefault.Foreground(tcell.ColorGreen).Background(mid2), rune(line2[i]))
+		s.SetContent(i+1, screen.sizeY-2, rune(line2[i]), nil, tcell.StyleDefault.Foreground(tcell.ColorGreen).Background(mid2))
 	}
 	for i := 0; i < len(line3); i++ {
-		s.SetCell(i+1, sY-1, tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(mid3), rune(line3[i]))
+		s.SetContent(i+1, screen.sizeY-1, rune(line3[i]), nil, tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(mid3))
 	}
 }
 
 // draw key modifier  stats, mostly copy/paste of above ¯\_(ツ)_/¯
-func (screen *Term) modstats(s tcell.Screen, radius int, circles int, offset int, sY int) {
+func (screen *Term) modstats(s tcell.Screen, radius int, circles int, offset int) {
 	line1 := fmt.Sprintf("radius [A-Z]: %v", radius)
 	line2 := fmt.Sprintf("circles[S-X]: %v", circles)
 	line3 := fmt.Sprintf("offset [D-C]: %v", offset)
@@ -76,58 +76,79 @@ func (screen *Term) modstats(s tcell.Screen, radius int, circles int, offset int
 	mid3 := tcell.NewRGBColor(30, 30, 30)
 
 	for i := 0; i < len(line1); i++ {
-		s.SetCell(i+20, sY-3, tcell.StyleDefault.Foreground(tcell.Color111).Background(mid1), rune(line1[i]))
+		s.SetContent(i+20, screen.sizeY-3, rune(line1[i]), nil, tcell.StyleDefault.Foreground(tcell.Color111).Background(mid1))
 	}
 	for i := 0; i < len(line2); i++ {
-		s.SetCell(i+20, sY-2, tcell.StyleDefault.Foreground(tcell.ColorGreen).Background(mid2), rune(line2[i]))
+		s.SetContent(i+20, screen.sizeY-2, rune(line2[i]), nil, tcell.StyleDefault.Foreground(tcell.ColorGreen).Background(mid2))
 	}
 	for i := 0; i < len(line3); i++ {
-		s.SetCell(i+20, sY-1, tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(mid3), rune(line3[i]))
+		s.SetContent(i+20, screen.sizeY-1, rune(line3[i]), nil, tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(mid3))
 	}
 }
 
-// reads screen.Matrix for display
+// reads screen.matrix for display
 func (screen *Term) draw(s tcell.Screen) {
 	st := tcell.StyleDefault
-	for x, _ := range screen.Matrix {
-		for y, _ := range screen.Matrix[x] {
-			s.SetCell(x, y, st, screen.Matrix[x][y])
+	for x, _ := range screen.matrix {
+		for y, _ := range screen.matrix[x] {
+			s.SetContent(x, y, screen.matrix[x][y], nil, st)
 		}
 	}
 }
 
-// writes screen.Matrix with a braille image cache
+// writes screen.matrix with a braille image cache
 func (screen *Term) makeScreen(m image.Image, s tcell.Screen) {
-	if screen.SizeX == 0 || screen.SizeY == 0 {
+	if screen.sizeX == 0 || screen.sizeY == 0 {
 		return
 	}
 	buf := new(bytes.Buffer)
 	dotmatrix.Print(buf, m)
 
-	for x, _ := range screen.Matrix {
-		for y, _ := range screen.Matrix[x] {
-			screen.Matrix[x][y] = ' '
-		}
-	}
-
-	for y := 0; y <= screen.SizeY; y++ {
-		for x := 0; x <= screen.SizeX; x++ {
+	for y := 0; y <= screen.sizeY; y++ {
+		for x := 0; x <= screen.sizeX; x++ {
 			if buf.Len() > 0 {
 				gl, _, e := buf.ReadRune()
 				if e != nil {
 					fmt.Fprintf(os.Stderr, "%#v\n", e)
 				}
 				if gl == '\n' {
-					screen.Matrix[x][y] = ' '
 					break
 				}
-				screen.Matrix[x][y] = gl
+				screen.matrix[x][y] = gl
 			}
 		}
 	}
+	screen.draw(s)
+}
+func (screen *Term) makeImage(dc gg.Context, rotate float64, radius float64, circles int, offset int, moveX int, moveY int) {
+	dc.SetRGB(1, 1, 1)
+	dc.Clear()
+	dc.SetRGB(0, 0, 0)
+	for i := 0; i <= circles; i++ {
+		t := float64(i) / (400 + rotate/9)
+		d := t*rotate*0.6 + 10 + float64(offset)
+		a := t * math.Pi * 2 * 20
+		x := float64(screen.sizeX+moveX) + math.Cos(a)*d
+		y := float64(screen.sizeX-screen.sizeY/2+moveY) + math.Sin(a)*d
+		r := t * radius
+		dc.DrawCircle(x, y, r)
+	}
+	dc.Fill()
 }
 
 func main() {
+	// minimum loop speed (1000ms/30fps =~33ms)
+	const delay = 33
+	var rotate float64
+	var elapsed3 time.Duration
+	start := time.Now()
+	t := time.Now()
+	radius := 6.00
+	circles := 400
+	offset := 10
+	moveX := 0
+	moveY := 0
+
 	tcell.SetEncodingFallback(tcell.EncodingFallbackASCII)
 	s, e := tcell.NewScreen()
 	if e != nil {
@@ -144,15 +165,8 @@ func main() {
 		Background(tcell.ColorBlack))
 	s.Clear()
 
-	sX, sY := s.Size()
 	screen := newTerm(s.Size())
-	dc := gg.NewContext(sX*2, sY*4)
-
-	radius := 10.00
-	circles := 400
-	offset := 0
-	moveX := 0
-	moveY := 0
+	dc := gg.NewContext(screen.sizeX*2, screen.sizeY*4)
 
 	quit := make(chan struct{})
 	go func() {
@@ -165,9 +179,13 @@ func main() {
 					close(quit)
 					return
 				case tcell.KeyCtrlL:
-					radius = 10.0
-					circles = 500.0
-					offset = 0
+					radius = 6.0
+					circles = 400
+					offset = 10
+					rotate = 0
+					moveX = 0
+					moveY = 0
+
 					s.Clear()
 					s.Sync()
 				case tcell.KeyRight:
@@ -183,86 +201,66 @@ func main() {
 						radius++
 					}
 					if ev.Rune() == 'z' || ev.Rune() == 'Z' {
-						radius--
+						if radius > 0 {
+							radius--
+						}
 					}
 					if ev.Rune() == 's' || ev.Rune() == 'S' {
-						circles = circles + 2
+						circles += 5
 					}
 					if ev.Rune() == 'x' || ev.Rune() == 'X' {
-						circles = circles - 2
+						circles -= 5
 					}
 					if ev.Rune() == 'd' || ev.Rune() == 'D' {
-						offset = offset + 2
+						offset -= 1
 					}
 					if ev.Rune() == 'c' || ev.Rune() == 'C' {
-						offset = offset - 2
+						offset += 1
 					}
 				}
 			case *tcell.EventResize:
-				sX, sY = s.Size()
 				screen = newTerm(s.Size())
-				dc = gg.NewContext(sX*2, sY*4)
+				dc = gg.NewContext(screen.sizeX*2, screen.sizeY*4)
 				s.Sync()
 			}
 		}
 	}()
-
-	rotate := -1000.0
-	elapsed3 := time.Duration(0)
-	start := time.Now()
-	t := time.Now()
 
 loop:
 	for {
 		select {
 		case <-quit:
 			break loop
-			// minimum loop speed ~30fps
-		case <-time.After(time.Millisecond * 33):
+		case <-time.After(time.Millisecond * delay):
 		}
 		// record previous lap, start new image
 		t = time.Now()
-		elapsed3 = t.Sub(start) - (time.Millisecond * 33)
+		elapsed3 = t.Sub(start) - (time.Millisecond * delay)
 		start = time.Now()
 
 		// create an image with lots of circles
-		dc.SetRGB(1, 1, 1)
-		dc.Clear()
-		dc.SetRGB(0, 0, 0)
-		for i := 0; i <= circles; i++ {
-			t := float64(i) / (400 + rotate/9)
-			d := t*rotate*0.6 + 10 + float64(offset)
-			a := t * math.Pi * 2 * 20
-			x := float64(screen.SizeX+moveX) + math.Cos(a)*d
-			y := float64(screen.SizeX-screen.SizeY/2+moveY) + math.Sin(a)*d
-			r := t * radius
-			dc.DrawCircle(x, y, r)
-		}
-		dc.Fill()
-		ms := dc.Image()
-
+		screen.makeImage(*dc, rotate, radius, circles, offset, moveX, moveY)
 		t = time.Now()
 		elapsed1 := t.Sub(start)
 
-		// convert image to pixel Matrix data for display
+		// convert image to pixel matrix data for display
 		start = time.Now()
-		screen.makeScreen(ms, s)
-		screen.draw(s)
+		screen.makeScreen(dc.Image(), s)
 		t = time.Now()
 		elapsed2 := t.Sub(start)
 
 		// elapsed3 is the measured time of the previous frame
-		screen.stats(s, elapsed1, elapsed2, elapsed3, sY)
-		screen.modstats(s, int(radius), circles, offset, sY)
-
-		// update the screen
-		s.Show()
+		screen.stats(s, elapsed1, elapsed2, elapsed3)
+		screen.modstats(s, int(radius), circles, offset)
 
 		// increment rotate for next frame
 		rotate = rotate + 2
 		if rotate > 800 {
-			rotate = -1000
+			rotate = -800
 		}
+
+		// update the screen
+		s.Show()
 	}
 	s.Fini()
 }
